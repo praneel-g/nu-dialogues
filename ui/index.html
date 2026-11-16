@@ -216,10 +216,12 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; }
 
 <footer>
   <p>Unofficial student project, not affiliated with Northeastern GEO. Values are pulled from program brochures and can be out of date. Check the brochure before relying on a date or cost.</p>
+  <p id="analytics-note" hidden>Visits and feature use are counted anonymously with <a href="https://www.goatcounter.com">GoatCounter</a>: no cookies, no personal data.</p>
   <p><a href="https://github.com/praneel-g/nu-dialogues">Source on GitHub</a></p>
 </footer>
 
 <script src="data.js"></script>
+<script src="analytics.js"></script>
 <script>
 "use strict";
 const DATA = (window.DIALOGUES && window.DIALOGUES.programs) || [];
@@ -536,7 +538,7 @@ function detailRow(p) {
       <div class="more" style="margin-top:6px">Ranges count at their upper end. Check the brochure for details.</div></div>
     <div><h4>Colleges & subjects</h4>${tagList(p.colleges, state.sel.colleges, 99)}<div style="height:6px"></div>${tagList(p.subjects, state.sel.subjects, 99)}
       ${p.endorsed.length ? `<h4 style="margin-top:12px">Endorsed by</h4>${tagList(p.endorsed, state.sel.endorsed, 99)}` : ""}
-      <p style="margin:12px 0 0">${p.accepting ? `<a href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener"><strong>Apply ↗</strong></a> · ` : `<span class="more">Not accepting applications</span> · `}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open brochure ↗</a></p></div>
+      <p style="margin:12px 0 0">${p.accepting ? `<a href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener" data-track="apply/${p.id}" data-track-title="Apply: ${esc(p.fullName)}"><strong>Apply ↗</strong></a> · ` : `<span class="more">Not accepting applications</span> · `}<a href="${esc(r.url)}" target="_blank" rel="noopener" data-track="brochure/${p.id}" data-track-title="Brochure: ${esc(p.fullName)}">Open brochure ↗</a></p></div>
   </div></td></tr>`;
 }
 
@@ -553,7 +555,7 @@ function renderTable(list) {
     return `<tr class="row ${open ? "open" : ""}" data-id="${p.id}" tabindex="0" aria-expanded="${open}">
       <td><div class="name-cell"><button class="star" data-star="${p.id}" aria-pressed="${p.starred}" aria-label="${p.starred ? "Unstar" : "Star"} ${esc(p.name)}" title="${p.starred ? "Starred on this device" : "Star (saved on this device)"}">${p.starred ? "★" : "☆"}</button>
         <div><div class="name">${highlight(p.name)}</div><div class="where">${highlight(p.countries.join(", "))}</div>
-        ${badges || p.accepting ? `<div class="tags" style="margin-top:4px">${badges}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener">Apply ↗</a>` : ""}</div>` : ""}</div></div></td>
+        ${badges || p.accepting ? `<div class="tags" style="margin-top:4px">${badges}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener" data-track="apply/${p.id}" data-track-title="Apply: ${esc(p.fullName)}">Apply ↗</a>` : ""}</div>` : ""}</div></div></td>
       <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.map(t => t.replace(/ Dialogue$/, "").replace(/ /g, "\u00a0")).join(", "))}</div></td>
       <td class="hide-sm">${tagList(p.faculty, state.sel.faculty, 3)}</td>
       <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}${p.nupaths.length ? `<div class="tags" style="margin-top:4px">${nupathTags(p.nupaths)}</div>` : ""}</td>
@@ -621,6 +623,11 @@ function update() {
   saveHash();
 }
 
+// ---------- analytics (see analytics.js). Filters count once per visit, not on every click.
+const track = (name, title) => { try { window.analytics?.event(name, title); } catch {} };
+const usedFilters = new Set();
+const trackFilter = key => { if (!usedFilters.has(key)) { usedFilters.add(key); track(`filter/${key}`); } };
+
 function init() {
   if (!programs.length) {
     document.querySelector("main").innerHTML = `<div class="results empty">No data. Run <code>scrape_dialogues.py</code> to create <code>ui/data.js</code>.</div>`;
@@ -635,15 +642,18 @@ function init() {
   let t;
   qEl.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { state.q = qEl.value.trim(); update(); }, 120); });
   sortEl.addEventListener("change", () => { state.sort = sortEl.value; update(); });
-  document.getElementById("export").addEventListener("click", () => exportCsv(current));
+  document.getElementById("export").addEventListener("click", () => { exportCsv(current); track("export"); });
+  document.addEventListener("click", e => { const a = e.target.closest("a[data-track]"); if (a) track(a.dataset.track, a.dataset.trackTitle); });
+  window.addEventListener("appinstalled", () => track("installed"));
   document.getElementById("reset").addEventListener("click", () => { state = { ...blankState(), sort: state.sort }; qEl.value = ""; update(); });
 
   facetsEl.addEventListener("change", e => {
     const el = e.target;
     if (el.dataset.facetVal) {
       const k = el.dataset.facetVal;
+      trackFilter(k);
       state.sel[k] = el.checked ? [...state.sel[k], el.value] : state.sel[k].filter(v => v !== el.value);
-    } else if (el.dataset.toggle) state.toggles[el.dataset.toggle] = el.checked;
+    } else if (el.dataset.toggle) { state.toggles[el.dataset.toggle] = el.checked; trackFilter(el.dataset.toggle); }
     else if (el.id === "from" || el.id === "to") state[el.id] = el.value;
     else return;
     update();
@@ -652,7 +662,7 @@ function init() {
     const el = e.target;
     if (el.dataset.fsearch) { facetSearch[el.dataset.fsearch] = el.value; renderFacets(); }
     else if (el.id === "maxTotal" || el.id === "maxFee") { state[el.id] = Number(el.value); update(); }
-    else if (el.id === "gpa") { state.gpa = el.value.trim(); update(); }
+    else if (el.id === "gpa") { state.gpa = el.value.trim(); trackFilter("gpa"); update(); }
   });
   facetsEl.addEventListener("click", e => {
     const b = e.target.closest("[data-mode]"); if (!b) return;
@@ -672,7 +682,8 @@ function init() {
     const star = e.target.closest("[data-star]");
     if (star) {
       const id = star.dataset.star;
-      stars.has(id) ? stars.delete(id) : stars.add(id);
+      if (stars.has(id)) stars.delete(id);
+      else { stars.add(id); track(`star/${id}`, `Star: ${programs.find(p => p.id === id)?.fullName || id}`); }
       saveStars(); syncStars(); update();
       tbody.querySelector(`[data-star="${id}"]`)?.focus();
       return;
@@ -696,6 +707,7 @@ function init() {
   window.addEventListener("hashchange", () => { loadHash(); qEl.value = state.q; update(); });
 
   update();
+  window.analytics?.init();
 }
 init();
 

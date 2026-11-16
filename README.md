@@ -25,6 +25,10 @@ dates, DOC fee, and estimated total cost. The scraper also writes everything to 
 On a phone, **Add to Home Screen** installs it as an app that also works
 offline. `ui/index.html` also works opened straight from disk.
 
+The site has no accounts, ads, or cookies, and stars stay in your browser. It
+counts visits and feature use anonymously through
+[GoatCounter](https://www.goatcounter.com), which collects no personal data.
+
 ## Running the scraper
 
 ```sh

@@ -1,7 +1,7 @@
 // Offline support. Network first, so a new data.js shows up as soon as it's deployed;
 // the cached copy is only used when the network fails (offline, flaky campus Wi-Fi).
 const CACHE = "nu-dialogues-v1";
-const SHELL = ["./", "index.html", "data.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
+const SHELL = ["./", "index.html", "data.js", "analytics.js", "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
