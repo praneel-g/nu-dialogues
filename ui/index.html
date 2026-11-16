@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northeastern Dialogues</title>
+<meta name="description" content="Search, filter, and compare every Northeastern Dialogue of Civilizations program by country, courses, faculty, dates, and estimated cost.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>">
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+  --accent: #c8102e; --accent-soft: #fbe9ec; --chip: #f0f0ee; --hover: #fafaf8; --focus: #2563eb;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141416; --panel: #1c1c1f; --text: #ececee; --muted: #9a9aa2; --line: #2e2e33;
+    --accent: #ff5a6e; --accent-soft: #3a1d23; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141416; --panel: #1c1c1f; --text: #ececee; --muted: #9a9aa2; --line: #2e2e33;
+  --accent: #ff5a6e; --accent-soft: #3a1d23; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+header { padding: 20px 24px 12px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+header h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+header .sub { color: var(--muted); }
+footer { padding: 0 24px 32px; color: var(--muted); font-size: 13px; max-width: 760px; }
+footer p { margin: 0 0 6px; }
+
+.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; padding: 0 24px 40px; }
+aside { position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.aside-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px;
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.aside-head strong { font-size: 15px; }
+
+.facet { border-bottom: 1px solid var(--line); }
+.facet:last-child { border-bottom: 0; }
+.facet > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.facet > summary::-webkit-details-marker { display: none; }
+.facet > summary::after { content: "+"; margin-left: auto; color: var(--muted); font-weight: 400; }
+.facet[open] > summary::after { content: "–"; }
+.facet .badge { background: var(--accent); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 7px; font-weight: 600; }
+.facet-body { padding: 0 14px 12px; }
+.facet-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.facet-tools input[type=search] { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.mode { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 12px; }
+.mode button { border: 0; background: transparent; padding: 3px 8px; cursor: pointer; color: var(--muted); }
+.mode button[aria-pressed=true] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.opts { max-height: 220px; overflow: auto; margin: 0 -4px; }
+.opt { display: flex; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 6px; cursor: pointer; }
+.opt:hover { background: var(--hover); }
+.opt input { accent-color: var(--accent); margin: 0; }
+.opt .label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.opt .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.opt.zero { opacity: .45; }
+.range { display: grid; gap: 6px; }
+.range-row { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.range input[type=range] { width: 100%; accent-color: var(--accent); }
+.dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dates label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+.dates input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
+.toggle { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.toggle input { accent-color: var(--accent); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.search { flex: 1 1 260px; position: relative; }
+.search input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); }
+.btn { border: 1px solid var(--line); background: var(--panel); padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+.btn:hover { background: var(--hover); }
+.btn.link { border: 0; background: none; color: var(--accent); padding: 4px; }
+select.btn { padding-right: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 0; }
+.chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; padding: 3px 4px 3px 10px; font-size: 12.5px; }
+.chip button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0 6px; font-size: 14px; line-height: 1; }
+.chip b { font-weight: 600; }
+.count-line { color: var(--muted); margin-bottom: 8px; }
+
+.results { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: clip; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; background: var(--panel);
+  position: sticky; top: 0; z-index: 2; white-space: nowrap; box-shadow: inset 0 -1px 0 var(--line); }
+th button { all: unset; cursor: pointer; }
+th button:focus-visible { outline: 2px solid var(--focus); }
+th .arrow { color: var(--accent); }
+tbody tr.row { cursor: pointer; }
+tbody tr.row:hover { background: var(--hover); }
+tr.row.open { background: var(--hover); }
+.name { font-weight: 600; }
+.where { color: var(--muted); font-size: 12.5px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 12px; white-space: nowrap; }
+.tag.hl { background: var(--accent-soft); color: var(--accent); }
+.prereqs { max-width: 300px; font-size: 12px; line-height: 1.35; }
+.prereq { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.prereq + .prereq { margin-top: 4px; }
+.prereq.soft { color: var(--muted); font-style: italic; }
+.tag.honors { background: var(--accent); color: #fff; }
+.more { color: var(--muted); font-size: 12px; }
+tr.detail td { background: var(--hover); padding: 14px 16px 18px; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 24px; }
+.detail-grid h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.detail-grid ul { margin: 0; padding-left: 18px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+mark { background: #fde68a; color: inherit; border-radius: 2px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) mark { background: #6b5a12; } }
+:root[data-theme="dark"] mark { background: #6b5a12; }
+
+.filters-toggle { display: none; }
+.scrim { display: none; }
+@media (max-width: 900px) {
+  header { padding: 16px 16px 8px; }
+  footer { padding: 0 16px 24px; }
+  .layout { grid-template-columns: 1fr; padding: 0 16px 32px; }
+  aside { position: fixed; inset: 0 auto 0 0; width: min(88vw, 340px); max-height: none; border-radius: 0; z-index: 20;
+    transform: translateX(-105%); transition: transform .2s ease; }
+  aside.show { transform: none; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19; }
+  .scrim.show { display: block; }
+  .filters-toggle { display: inline-block; }
+  .hide-sm { display: none; }
+  th, td { padding: 9px 8px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Northeastern Dialogues</h1>
+  <span class="sub" id="sub"></span>
+</header>
+
+<div class="layout">
+  <aside id="aside" aria-label="Filters">
+    <div class="aside-head">
+      <strong>Filters</strong>
+      <span><button class="btn link" id="reset">Reset</button><button class="btn link filters-toggle" id="close-filters" aria-label="Close filters">✕</button></span>
+    </div>
+    <div id="facets"></div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main>
+    <div class="toolbar">
+      <button class="btn filters-toggle" id="open-filters">Filters <span id="filter-count"></span></button>
+      <div class="search"><input id="q" type="search" placeholder="Search programs, courses, faculty, places…" aria-label="Search"></div>
+      <select class="btn" id="sort" aria-label="Sort by">
+        <option value="name">Name A–Z</option>
+        <option value="start">Start date</option>
+        <option value="total">Estimated total (low → high)</option>
+        <option value="-total">Estimated total (high → low)</option>
+        <option value="fee">DOC fee (low → high)</option>
+        <option value="deadline">Application deadline</option>
+      </select>
+      <button class="btn" id="export" title="Download the programs shown as CSV">Export CSV</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="count-line" id="count"></div>
+    <div class="results">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<footer>
+  <p>Unofficial student project, not affiliated with Northeastern GEO. Values are pulled from program brochures and can be out of date. Check the brochure before relying on a date or cost.</p>
+  <p><a href="https://github.com/praneel-g/nu-dialogues">Source on GitHub</a></p>
+</footer>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+const DATA = (window.DIALOGUES && window.DIALOGUES.programs) || [];
+const SEP = "; ";
+const split = v => (v || "").split(SEP).map(s => s.trim()).filter(Boolean);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => (n === null || n === undefined || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDate = iso => { if (!iso) return "—"; const [y, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]} ${d}, ${y}`; };
+const shortDate = iso => { if (!iso) return "—"; const [, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]} ${d}`; };
+
+// Normalise each program once: multi-value fields become arrays.
+const programs = DATA.map(r => {
+  const courses = split(r.courses);
+  return {
+    raw: r,
+    id: String(r.program_id),
+    name: r.program_name.replace(/^Dialogue\+?:\s*/, ""),
+    fullName: r.program_name,
+    plus: r.program_name.startsWith("Dialogue+"),
+    courses,
+    courseSubjects: [...new Set(courses.map(c => c.split(/\s/)[0]))],
+    faculty: split(r.faculty_leaders),
+    emails: split(r.faculty_emails),
+    cities: split(r.cities), countries: split(r.countries), regions: split(r.regions),
+    terms: split(r.term),
+    colleges: split(r.colleges_and_schools), subjects: split(r.academic_subjects),
+    endorsed: split(r.college_endorsed),
+    status: split(r.program_status),
+    honors: r.honors_endorsed === "Yes",
+    accepting: r.accepting_applications === "Yes",
+    start: split(r.start_date)[0] || "", end: split(r.end_date).slice(-1)[0] || "",
+    deadline: split(r.application_deadline)[0] || "",
+    total: r.estimated_total_cost ? Number(r.estimated_total_cost) : null,
+    fee: r.doc_fee !== "" ? Number(r.doc_fee) : null,
+    credits: r.credits,
+    prereqs: split(r.prerequisites).filter(v => v !== "None"),
+  };
+});
+programs.forEach(p => {
+  // Only recommendations, exclusions, or notes left -> nothing actually required.
+  p.noPrereqs = !p.prereqs.some(v => !/^(Not open|Exceptions)/.test(v) && !/: Recommended:/.test(v) && !v.startsWith("Recommended"));
+  p.haystack = [p.fullName, p.courses.join(" "), p.faculty.join(" "), p.cities.join(" "), p.countries.join(" "),
+    p.regions.join(" "), p.subjects.join(" "), p.colleges.join(" "), p.terms.join(" "), p.prereqs.join(" ")].join(" ").toLowerCase();
+});
+
+// Facets: list facets support any/all matching when a program can have several values.
+const FACETS = [
+  { key: "countries", label: "Country", multi: true, open: true },
+  { key: "regions", label: "Region", multi: true },
+  { key: "terms", label: "Term" },
+  { key: "colleges", label: "College / School", multi: true, open: true },
+  { key: "subjects", label: "Academic subject", multi: true },
+  { key: "courseSubjects", label: "Course subject code", multi: true },
+  { key: "faculty", label: "Faculty leader", multi: true },
+  { key: "endorsed", label: "College-endorsed", multi: true },
+  { key: "status", label: "Program status" },
+];
+const TOGGLES = [
+  { key: "honors", label: "Honors-endorsed only" },
+  { key: "accepting", label: "Accepting applications" },
+  { key: "noPrereqs", label: "No required prerequisites" },
+  { key: "plus", label: "Dialogue+ (semester) only" },
+];
+
+const totals = programs.map(p => p.total).filter(v => v !== null);
+const fees = programs.map(p => p.fee).filter(v => v !== null);
+const LIMITS = {
+  total: [Math.floor(Math.min(...totals) / 500) * 500, Math.ceil(Math.max(...totals) / 500) * 500],
+  fee: [0, Math.ceil(Math.max(...fees) / 250) * 250],
+};
+const starts = programs.map(p => p.start).filter(Boolean).sort();
+
+const blankState = () => ({
+  q: "", sort: "name", sel: Object.fromEntries(FACETS.map(f => [f.key, []])),
+  mode: Object.fromEntries(FACETS.map(f => [f.key, "any"])),
+  toggles: Object.fromEntries(TOGGLES.map(t => [t.key, false])),
+  maxTotal: LIMITS.total[1], maxFee: LIMITS.fee[1], from: "", to: "",
+});
+let state = blankState();
+const openRows = new Set();
+const facetSearch = {};
+
+// ---------- filtering
+function matchesFacet(p, f, sel = state.sel[f.key]) {
+  if (!sel.length) return true;
+  const vals = p[f.key];
+  return state.mode[f.key] === "all" ? sel.every(v => vals.includes(v)) : sel.some(v => vals.includes(v));
+}
+function matchesOthers(p, skipKey) {
+  if (state.q) {
+    const terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.every(t => p.haystack.includes(t))) return false;
+  }
+  for (const f of FACETS) if (f.key !== skipKey && !matchesFacet(p, f)) return false;
+  for (const t of TOGGLES) if (state.toggles[t.key] && !p[t.key]) return false;
+  if (state.maxTotal < LIMITS.total[1] && (p.total === null || p.total > state.maxTotal)) return false;
+  if (state.maxFee < LIMITS.fee[1] && (p.fee === null || p.fee > state.maxFee)) return false;
+  if (state.from && (!p.start || p.start < state.from)) return false;
+  if (state.to && (!p.end || p.end > state.to)) return false;
+  return true;
+}
+const filtered = () => programs.filter(p => matchesOthers(p, null));
+
+function sorted(list) {
+  const by = {
+    name: (a, b) => a.name.localeCompare(b.name),
+    start: (a, b) => (a.start || "9").localeCompare(b.start || "9") || a.name.localeCompare(b.name),
+    deadline: (a, b) => (a.deadline || "9").localeCompare(b.deadline || "9") || a.name.localeCompare(b.name),
+    total: (a, b) => (a.total ?? 1e9) - (b.total ?? 1e9),
+    "-total": (a, b) => (b.total ?? -1) - (a.total ?? -1),
+    fee: (a, b) => (a.fee ?? 1e9) - (b.fee ?? 1e9),
+  }[state.sort] || (() => 0);
+  return [...list].sort(by);
+}
+
+// ---------- sidebar
+const facetsEl = document.getElementById("facets");
+function buildSidebar() {
+  const parts = [];
+  parts.push(`<details class="facet" open><summary>Quick filters</summary><div class="facet-body">
+    ${TOGGLES.map(t => `<label class="toggle"><input type="checkbox" data-toggle="${t.key}"> ${esc(t.label)}</label>`).join("")}
+  </div></details>`);
+  parts.push(`<details class="facet" open><summary>Cost</summary><div class="facet-body range">
+    <div class="range-row"><span>Estimated total up to</span><strong id="maxTotalOut"></strong></div>
+    <input type="range" id="maxTotal" min="${LIMITS.total[0]}" max="${LIMITS.total[1]}" step="250" aria-label="Maximum estimated total">
+    <div class="range-row" style="margin-top:6px"><span>DOC fee up to</span><strong id="maxFeeOut"></strong></div>
+    <input type="range" id="maxFee" min="0" max="${LIMITS.fee[1]}" step="50" aria-label="Maximum DOC fee">
+  </div></details>`);
+  parts.push(`<details class="facet"><summary>Dates</summary><div class="facet-body dates">
+    <label>Starts on/after<input type="date" id="from" min="${starts[0] || ""}"></label>
+    <label>Ends on/before<input type="date" id="to"></label>
+  </div></details>`);
+  for (const f of FACETS) {
+    parts.push(`<details class="facet" data-facet="${f.key}" ${f.open ? "open" : ""}>
+      <summary>${esc(f.label)} <span class="badge" hidden></span></summary>
+      <div class="facet-body">
+        <div class="facet-tools">
+          <input type="search" placeholder="Find…" data-fsearch="${f.key}" aria-label="Find ${esc(f.label)}">
+          ${f.multi ? `<span class="mode" role="group" aria-label="Match mode">
+            <button type="button" data-mode="any" title="Programs with any selected value">Any</button>
+            <button type="button" data-mode="all" title="Programs with every selected value">All</button></span>` : ""}
+        </div>
+        <div class="opts"></div>
+      </div></details>`);
+  }
+  facetsEl.innerHTML = parts.join("");
+}
+
+function allValues(key) {
+  const set = new Map();
+  programs.forEach(p => p[key].forEach(v => set.set(v, (set.get(v) || 0) + 1)));
+  return [...set.keys()];
+}
+const VALUES = Object.fromEntries(FACETS.map(f => [f.key, allValues(f.key)]));
+
+function renderFacets() {
+  for (const f of FACETS) {
+    const box = facetsEl.querySelector(`[data-facet="${f.key}"]`);
+    const sel = state.sel[f.key];
+    // Counts reflect every other active filter, so they show what picking a value would leave.
+    const base = programs.filter(p => matchesOthers(p, f.key));
+    const counts = new Map();
+    base.forEach(p => p[f.key].forEach(v => counts.set(v, (counts.get(v) || 0) + 1)));
+    const needle = (facetSearch[f.key] || "").toLowerCase();
+    let vals = VALUES[f.key].filter(v => !needle || v.toLowerCase().includes(needle));
+    vals.sort((a, b) => (sel.includes(b) - sel.includes(a)) || ((counts.get(b) || 0) - (counts.get(a) || 0)) || a.localeCompare(b));
+    box.querySelector(".opts").innerHTML = vals.length ? vals.map(v => {
+      const c = counts.get(v) || 0, on = sel.includes(v);
+      return `<label class="opt ${c || on ? "" : "zero"}"><input type="checkbox" data-facet-val="${esc(f.key)}" value="${esc(v)}" ${on ? "checked" : ""}>
+        <span class="label">${esc(v)}</span><span class="count">${c}</span></label>`;
+    }).join("") : `<div class="more" style="padding:4px">${VALUES[f.key].length ? "No match" : "No values for Dialogues"}</div>`;
+    const badge = box.querySelector(".badge");
+    badge.hidden = !sel.length; badge.textContent = sel.length;
+    box.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(state.mode[f.key] === b.dataset.mode)));
+    box.querySelector(".facet-tools").style.display = VALUES[f.key].length > 8 || f.multi ? "" : "none";
+  }
+  TOGGLES.forEach(t => { facetsEl.querySelector(`[data-toggle="${t.key}"]`).checked = state.toggles[t.key]; });
+  const mt = document.getElementById("maxTotal"), mf = document.getElementById("maxFee");
+  mt.value = state.maxTotal; mf.value = state.maxFee;
+  document.getElementById("maxTotalOut").textContent = state.maxTotal >= LIMITS.total[1] ? "Any" : money(state.maxTotal);
+  document.getElementById("maxFeeOut").textContent = state.maxFee >= LIMITS.fee[1] ? "Any" : money(state.maxFee);
+  document.getElementById("from").value = state.from;
+  document.getElementById("to").value = state.to;
+}
+
+// ---------- chips
+function renderChips() {
+  const chips = [];
+  if (state.q) chips.push({ label: `Search: <b>${esc(state.q)}</b>`, clear: () => { state.q = ""; qEl.value = ""; } });
+  for (const f of FACETS) for (const v of state.sel[f.key]) {
+    chips.push({ label: `${esc(f.label)}: <b>${esc(v)}</b>`, clear: () => { state.sel[f.key] = state.sel[f.key].filter(x => x !== v); } });
+  }
+  for (const t of TOGGLES) if (state.toggles[t.key]) chips.push({ label: esc(t.label), clear: () => { state.toggles[t.key] = false; } });
+  if (state.maxTotal < LIMITS.total[1]) chips.push({ label: `Total ≤ <b>${money(state.maxTotal)}</b>`, clear: () => { state.maxTotal = LIMITS.total[1]; } });
+  if (state.maxFee < LIMITS.fee[1]) chips.push({ label: `DOC fee ≤ <b>${money(state.maxFee)}</b>`, clear: () => { state.maxFee = LIMITS.fee[1]; } });
+  if (state.from) chips.push({ label: `Starts ≥ <b>${fmtDate(state.from)}</b>`, clear: () => { state.from = ""; } });
+  if (state.to) chips.push({ label: `Ends ≤ <b>${fmtDate(state.to)}</b>`, clear: () => { state.to = ""; } });
+  const el = document.getElementById("chips");
+  el.innerHTML = chips.map((c, i) => `<span class="chip">${c.label}<button data-chip="${i}" aria-label="Remove filter">×</button></span>`).join("")
+    + (chips.length > 1 ? `<button class="btn link" data-chip="all">Clear all</button>` : "");
+  el.onclick = e => {
+    const b = e.target.closest("[data-chip]"); if (!b) return;
+    if (b.dataset.chip === "all") { state = { ...blankState(), sort: state.sort }; qEl.value = ""; }
+    else chips[+b.dataset.chip].clear();
+    update();
+  };
+  document.getElementById("filter-count").textContent = chips.length ? `(${chips.length})` : "";
+}
+
+// ---------- table
+const COLS = [
+  { key: "name", label: "Program", sort: "name" },
+  { key: "dates", label: "Dates", sort: "start" },
+  { key: "faculty", label: "Faculty", cls: "hide-sm" },
+  { key: "courses", label: "Courses", cls: "hide-sm" },
+  { key: "prereqs", label: "Prerequisites", cls: "hide-sm" },
+  { key: "fee", label: "DOC fee", sort: "fee", cls: "num hide-sm" },
+  { key: "total", label: "Est. total", sort: "total", cls: "num" },
+];
+function renderHead() {
+  document.getElementById("thead").innerHTML = COLS.map(c => {
+    const active = c.sort && (state.sort === c.sort || state.sort === "-" + c.sort);
+    const arrow = active ? (state.sort.startsWith("-") ? " ↓" : " ↑") : "";
+    return `<th class="${c.cls || ""}" ${active ? `aria-sort="${state.sort.startsWith("-") ? "descending" : "ascending"}"` : ""}>${
+      c.sort ? `<button data-sort="${c.sort}">${c.label}<span class="arrow">${arrow}</span></button>` : c.label}</th>`;
+  }).join("");
+}
+
+function highlight(text) {
+  const t = esc(text);
+  if (!state.q) return t;
+  const terms = state.q.split(/\s+/).filter(w => w.length > 1).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return terms.length ? t.replace(new RegExp(`(${terms.join("|")})`, "gi"), "<mark>$1</mark>") : t;
+}
+function tagList(values, selected, limit, extraCls = "") {
+  const shown = values.slice(0, limit);
+  return `<div class="tags">${shown.map(v => `<span class="tag ${selected.includes(v) ? "hl" : ""} ${extraCls}">${highlight(v)}</span>`).join("")}${
+    values.length > limit ? `<span class="more">+${values.length - limit}</span>` : ""}</div>`;
+}
+
+// Compact prerequisites: one clamped line per item, full text on hover and in the expanded row.
+function prereqCell(p) {
+  if (!p.prereqs.length) return `<span class="more">None</span>`;
+  const items = p.prereqs.filter(v => !v.startsWith("Exceptions"));
+  const note = items.length < p.prereqs.length ? `<div class="more">Exceptions per faculty review</div>` : "";
+  return `<div class="prereqs" title="${esc(p.prereqs.join("\n"))}">${items.map(v => {
+    const soft = /Recommended:|^Not open/.test(v);
+    return `<div class="prereq${soft ? " soft" : ""}">${highlight(v)}</div>`;
+  }).join("")}${note}</div>`;
+}
+
+function detailRow(p) {
+  const r = p.raw;
+  const costs = [["Tuition", r.tuition], ["DOC fee", r.doc_fee], ["Flight", r.flight_estimate], ["Food", r.food_estimate],
+    ["Housing", r.housing_estimate], ["Personal", r.personal_expenses_estimate]].filter(([, v]) => v !== "");
+  const facultyHtml = p.faculty.map((n, i) => `<li>${esc(n)}${p.emails[i] ? ` · <a href="mailto:${esc(p.emails[i])}">${esc(p.emails[i])}</a>` : ""}</li>`).join("");
+  return `<tr class="detail"><td colspan="${COLS.length}"><div class="detail-grid">
+    <div><h4>Courses${p.credits ? ` · ${esc(p.credits)} credits` : ""}</h4><ul>${p.courses.map(c => `<li>${highlight(c)}</li>`).join("") || "<li>—</li>"}</ul>
+      <h4 style="margin-top:12px">Prerequisites</h4><ul>${p.prereqs.map(c => `<li>${highlight(c)}</li>`).join("") || "<li>None listed</li>"}</ul></div>
+    <div><h4>Faculty leaders</h4><ul>${facultyHtml || "<li>—</li>"}</ul>
+      <h4 style="margin-top:12px">Where</h4><div>${esc(p.cities.join(" · "))}</div><div class="where">${esc(p.countries.join(", "))}</div></div>
+    <div><h4>Dates</h4><div class="kv">
+      <span>Term</span><span>${esc(p.terms.join(", ") || "—")}</span>
+      <span>Program</span><span>${fmtDate(p.start)} – ${fmtDate(p.end)}</span>
+      <span>Apply by</span><span>${esc(split(r.application_deadline).map(fmtDate).join(", ") || "—")}</span>
+      <span>Decision</span><span>${esc(split(r.decision_date).map(fmtDate).join(", ") || "—")}</span>
+      <span>Status</span><span>${esc(p.status.join(", ") || "—")}${p.accepting ? " · accepting applications" : ""}</span>
+    </div></div>
+    <div><h4>Estimated costs</h4><div class="kv">${costs.map(([k, v]) => `<span>${k}</span><span>${money(Number(v))}</span>`).join("")}
+      ${r.other_costs ? `<span>Other</span><span>${esc(r.other_costs)}</span>` : ""}
+      <span><strong>Total</strong></span><span><strong>${money(p.total)}</strong></span></div>
+      <div class="more" style="margin-top:6px">Ranges count at their upper end. Check the brochure for details.</div></div>
+    <div><h4>Colleges & subjects</h4>${tagList(p.colleges, state.sel.colleges, 99)}<div style="height:6px"></div>${tagList(p.subjects, state.sel.subjects, 99)}
+      ${p.endorsed.length ? `<h4 style="margin-top:12px">Endorsed by</h4>${tagList(p.endorsed, state.sel.endorsed, 99)}` : ""}
+      <p style="margin:12px 0 0"><a href="${esc(r.url)}" target="_blank" rel="noopener">Open brochure ↗</a></p></div>
+  </div></td></tr>`;
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById("tbody");
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="${COLS.length}" class="empty">No programs match these filters.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => {
+    const open = openRows.has(p.id);
+    const badges = (p.honors ? `<span class="tag honors">Honors</span> ` : "") + (p.plus ? `<span class="tag">Dialogue+</span> ` : "");
+    return `<tr class="row ${open ? "open" : ""}" data-id="${p.id}" tabindex="0" aria-expanded="${open}">
+      <td><div class="name">${highlight(p.name)}</div><div class="where">${highlight(p.countries.join(", "))}</div>${badges ? `<div class="tags" style="margin-top:4px">${badges}</div>` : ""}</td>
+      <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.join(", "))}</div></td>
+      <td class="hide-sm">${tagList(p.faculty, state.sel.faculty, 3)}</td>
+      <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}</td>
+      <td class="hide-sm">${prereqCell(p)}</td>
+      <td class="num hide-sm">${money(p.fee)}</td>
+      <td class="num"><strong>${money(p.total)}</strong></td>
+    </tr>${open ? detailRow(p) : ""}`;
+  }).join("");
+}
+
+// ---------- url state
+function saveHash() {
+  const s = {};
+  if (state.q) s.q = state.q;
+  if (state.sort !== "name") s.sort = state.sort;
+  for (const f of FACETS) { if (state.sel[f.key].length) s[f.key] = state.sel[f.key].join("|"); if (state.mode[f.key] === "all") s[f.key + "_all"] = "1"; }
+  for (const t of TOGGLES) if (state.toggles[t.key]) s[t.key] = "1";
+  if (state.maxTotal < LIMITS.total[1]) s.maxTotal = state.maxTotal;
+  if (state.maxFee < LIMITS.fee[1]) s.maxFee = state.maxFee;
+  if (state.from) s.from = state.from;
+  if (state.to) s.to = state.to;
+  const h = new URLSearchParams(s).toString();
+  history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
+}
+function loadHash() {
+  const s = new URLSearchParams(location.hash.slice(1));
+  state = blankState();
+  state.q = s.get("q") || "";
+  state.sort = s.get("sort") || "name";
+  for (const f of FACETS) {
+    if (s.get(f.key)) state.sel[f.key] = s.get(f.key).split("|");
+    if (s.get(f.key + "_all")) state.mode[f.key] = "all";
+  }
+  for (const t of TOGGLES) state.toggles[t.key] = s.get(t.key) === "1";
+  if (s.get("maxTotal")) state.maxTotal = Number(s.get("maxTotal"));
+  if (s.get("maxFee")) state.maxFee = Number(s.get("maxFee"));
+  state.from = s.get("from") || ""; state.to = s.get("to") || "";
+}
+
+// ---------- export
+function exportCsv(list) {
+  if (!list.length) return;
+  const cols = Object.keys(list[0].raw);
+  const cell = v => /[",\n]/.test(v) ? `"${String(v).replace(/"/g, '""')}"` : v;
+  const csv = [cols.join(","), ...list.map(p => cols.map(c => cell(p.raw[c] ?? "")).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "dialogues-filtered.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---------- wiring
+const qEl = document.getElementById("q");
+const sortEl = document.getElementById("sort");
+let current = [];
+function update() {
+  current = sorted(filtered());
+  renderFacets(); renderChips(); renderHead(); renderTable(current);
+  sortEl.value = state.sort;
+  document.getElementById("count").textContent =
+    current.length === programs.length ? `${programs.length} programs` : `${current.length} of ${programs.length} programs`;
+  saveHash();
+}
+
+function init() {
+  if (!programs.length) {
+    document.querySelector("main").innerHTML = `<div class="results empty">No data. Run <code>scrape_dialogues.py</code> to create <code>ui/data.js</code>.</div>`;
+    return;
+  }
+  document.getElementById("sub").textContent =
+    `${programs.length} Dialogue of Civilizations programs · data from ${window.DIALOGUES.generated || "the GEO portal"}`;
+  buildSidebar();
+  loadHash();
+  qEl.value = state.q;
+
+  let t;
+  qEl.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { state.q = qEl.value.trim(); update(); }, 120); });
+  sortEl.addEventListener("change", () => { state.sort = sortEl.value; update(); });
+  document.getElementById("export").addEventListener("click", () => exportCsv(current));
+  document.getElementById("reset").addEventListener("click", () => { state = { ...blankState(), sort: state.sort }; qEl.value = ""; update(); });
+
+  facetsEl.addEventListener("change", e => {
+    const el = e.target;
+    if (el.dataset.facetVal) {
+      const k = el.dataset.facetVal;
+      state.sel[k] = el.checked ? [...state.sel[k], el.value] : state.sel[k].filter(v => v !== el.value);
+    } else if (el.dataset.toggle) state.toggles[el.dataset.toggle] = el.checked;
+    else if (el.id === "from" || el.id === "to") state[el.id] = el.value;
+    else return;
+    update();
+  });
+  facetsEl.addEventListener("input", e => {
+    const el = e.target;
+    if (el.dataset.fsearch) { facetSearch[el.dataset.fsearch] = el.value; renderFacets(); }
+    else if (el.id === "maxTotal" || el.id === "maxFee") { state[el.id] = Number(el.value); update(); }
+  });
+  facetsEl.addEventListener("click", e => {
+    const b = e.target.closest("[data-mode]"); if (!b) return;
+    const key = b.closest("[data-facet]").dataset.facet;
+    state.mode[key] = b.dataset.mode; update();
+  });
+
+  document.getElementById("thead").addEventListener("click", e => {
+    const b = e.target.closest("[data-sort]"); if (!b) return;
+    const s = b.dataset.sort;
+    state.sort = s === "total" && state.sort === "total" ? "-total" : s;
+    update();
+  });
+  const toggleRow = row => { const id = row.dataset.id; openRows.has(id) ? openRows.delete(id) : openRows.add(id); renderTable(current); };
+  const tbody = document.getElementById("tbody");
+  tbody.addEventListener("click", e => { if (e.target.closest("a")) return; const row = e.target.closest("tr.row"); if (row) toggleRow(row); });
+  tbody.addEventListener("keydown", e => {
+    const row = e.target.closest("tr.row");
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row); tbody.querySelector(`tr.row[data-id="${row.dataset.id}"]`).focus(); }
+  });
+
+  const aside = document.getElementById("aside"), scrim = document.getElementById("scrim");
+  const showFilters = on => { aside.classList.toggle("show", on); scrim.classList.toggle("show", on); };
+  document.getElementById("open-filters").addEventListener("click", () => showFilters(true));
+  document.getElementById("close-filters").addEventListener("click", () => showFilters(false));
+  scrim.addEventListener("click", () => showFilters(false));
+  window.addEventListener("hashchange", () => { loadHash(); qEl.value = state.q; update(); });
+
+  update();
+}
+init();
+</script>
+</body>
+</html>

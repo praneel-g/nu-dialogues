@@ -1,0 +1,82 @@
+# Scrapes fresh Dialogue data every Monday, commits it if anything changed, and
+# publishes the static site in ui/ to GitHub Pages. Pushes to main just redeploy.
+name: Update and deploy site
+
+on:
+  schedule:
+    - cron: "23 11 * * 1" # Mondays, 7:23 AM Boston time (EDT)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ui/**"
+      - ".github/workflows/update-site.yml"
+
+permissions: {}
+
+concurrency:
+  group: update-site
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m playwright install --with-deps chromium
+
+      - run: python scrape_dialogues.py
+
+      # ui/data.js gets a new date on every run, so only commit when the data itself changed.
+      - name: Commit updated data
+        run: |
+          if git diff --quiet dialogues.csv; then
+            echo "No data changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dialogues.csv ui/data.js
+          git commit -m "Update Dialogue data"
+          # main may have moved during the scrape.
+          git pull --rebase
+          git push
+
+  deploy:
+    needs: scrape
+    # Also runs when scrape is skipped (pushes), but not when it fails.
+    if: ${{ !cancelled() && needs.scrape.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The branch head, so a data commit from the scrape job is included.
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ui
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
