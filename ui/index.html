@@ -144,7 +144,10 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; }
   header { padding: 16px 16px 8px; }
   footer { padding: 0 16px 24px; }
   .layout { grid-template-columns: minmax(0, 1fr); padding: 0 16px 32px; }
-  aside { position: fixed; inset: 0 auto 0 0; width: min(88vw, 340px); max-height: none; border-radius: 0; z-index: 20;
+  /* align-self: stretch matters: browsers apply the desktop align-self: start to fixed boxes too,
+     which sizes the drawer to its content so it can't scroll. */
+  aside { position: fixed; inset: 0 auto 0 0; align-self: stretch; width: min(88vw, 340px); max-height: none; border-radius: 0; z-index: 20;
+    overscroll-behavior: contain;
     transform: translateX(-105%); transition: transform .2s ease; }
   aside.show { transform: none; }
   .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19; }
