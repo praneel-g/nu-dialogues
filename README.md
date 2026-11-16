@@ -22,7 +22,8 @@ estimated total cost. The scraper also writes everything to `dialogues.csv`.
 - **Apply ↗** opens the program's GEO application (after Northeastern sign-in).
   It only appears while the portal says the program is accepting applications.
 
-`ui/index.html` also works opened straight from disk.
+On a phone, **Add to Home Screen** installs it as an app that also works
+offline. `ui/index.html` also works opened straight from disk.
 
 ## Running the scraper
 

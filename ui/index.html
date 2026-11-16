@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Northeastern Dialogues</title>
 <meta name="description" content="Search, filter, and compare every Northeastern Dialogue of Civilizations program by country, courses, faculty, dates, and estimated cost.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dialogues">
+<meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
 <style>
 :root {
   --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
@@ -584,7 +591,7 @@ function init() {
     return;
   }
   document.getElementById("sub").textContent =
-    `${programs.length} Dialogue of Civilizations programs · data from ${window.DIALOGUES.generated || "the GEO portal"}`;
+    `Unofficial student project · ${programs.length} Dialogue of Civilizations programs · data from ${window.DIALOGUES.generated || "the GEO portal"}`;
   buildSidebar();
   loadHash();
   qEl.value = state.q;
@@ -654,6 +661,11 @@ function init() {
   update();
 }
 init();
+
+// Installable app + offline support. Service workers need http(s), so opening the file from disk skips this.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script>
 </body>
 </html>
