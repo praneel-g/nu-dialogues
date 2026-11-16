@@ -27,6 +27,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
 
       - uses: actions/setup-python@v6
         with:
@@ -38,6 +40,15 @@ jobs:
       - run: python -m playwright install --with-deps chromium
 
       - run: python scrape_dialogues.py --concurrency 2
+
+      # Screenshots and HTML of any portal page that never loaded results.
+      - if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: scrape-debug
+          path: debug/
+          if-no-files-found: ignore
+          retention-days: 7
 
       # ui/data.js gets a new date on every run, so only commit when the data itself changed.
       - name: Commit updated data

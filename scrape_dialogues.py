@@ -64,6 +64,7 @@ TOGGLE_FILTERS = {
 }
 
 PAGE_TIMEOUT_MS = 60_000
+DEBUG_DIR = Path("debug")  # screenshots and HTML of pages that timed out, for diagnosing CI failures
 BROCHURE_PARTS = ("program", "brochure", "dates")  # JSON a brochure page must load to be complete
 PAGE_ATTEMPTS = 3  # tries per page before giving up, for slow or flaky portal responses
 
@@ -101,9 +102,12 @@ async def _run_search(context, filters: list[dict], want_options: bool) -> dict:
     records: dict[int, dict] = {}
     state = {"total": None, "options": None, "params": {}}
     got_batch = asyncio.Event()
+    failed: list[str] = []  # "status url" for every response that came back as an HTTP error
 
     async def on_response(resp):
         url = resp.url
+        if resp.status >= 400:
+            failed.append(f"{resp.status} {url[:120]}")
         try:
             if "program/discovery-search" in url and resp.request.method == "POST":
                 data = await resp.json()
@@ -121,8 +125,12 @@ async def _run_search(context, filters: list[dict], want_options: bool) -> dict:
 
     page.on("response", on_response)
     try:
-        await page.goto(discovery_url(filters), wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
-        await asyncio.wait_for(got_batch.wait(), PAGE_TIMEOUT_MS / 1000)
+        nav = await page.goto(discovery_url(filters), wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+        try:
+            await asyncio.wait_for(got_batch.wait(), PAGE_TIMEOUT_MS / 1000)
+        except asyncio.TimeoutError:
+            await report_stuck_page(page, nav.status if nav else None, failed)
+            raise
         stalls = 0
         while len(records) < (state["total"] or 0) and stalls < 4:
             got_batch.clear()
@@ -142,6 +150,26 @@ async def _run_search(context, filters: list[dict], want_options: bool) -> dict:
         await page.close()
 
     return {"records": records, "total": state["total"], "options": state["options"], "params": state["params"]}
+
+
+async def report_stuck_page(page, status: int | None, failed: list[str]) -> None:
+    """Explain a search page that never loaded results, so a failed CI run says why."""
+    try:
+        title = await page.title()
+    except Exception:
+        title = "?"
+    print(f"  search page loaded no results: HTTP {status}, title {title!r}, url {page.url[:120]}", file=sys.stderr)
+    for line in failed[:10]:
+        print(f"    error response: {line}", file=sys.stderr)
+    try:
+        DEBUG_DIR.mkdir(exist_ok=True)
+        n = len(list(DEBUG_DIR.glob("*.png"))) + 1
+        await page.screenshot(path=str(DEBUG_DIR / f"stuck-{n}.png"), full_page=True)
+        (DEBUG_DIR / f"stuck-{n}.html").write_text(await page.content())
+        for i, frame in enumerate(page.frames[1:], 1):
+            (DEBUG_DIR / f"stuck-{n}-frame{i}.html").write_text(f"<!-- {frame.url} -->\n" + await frame.content())
+    except Exception as e:
+        print(f"    could not save page for debugging: {e}", file=sys.stderr)
 
 
 async def complete_search(context, sem, filters: list[dict], countries: list[str], want_options: bool = False) -> dict:
