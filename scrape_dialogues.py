@@ -64,7 +64,8 @@ TOGGLE_FILTERS = {
 }
 
 PAGE_TIMEOUT_MS = 60_000
-SEARCH_ATTEMPTS = 3
+BROCHURE_PARTS = ("program", "brochure", "dates")  # JSON a brochure page must load to be complete
+PAGE_ATTEMPTS = 3  # tries per page before giving up, for slow or flaky portal responses
 
 
 def discovery_url(filters: list[dict]) -> str:
@@ -74,17 +75,24 @@ def discovery_url(filters: list[dict]) -> str:
 # --------------------------------------------------------------------------- scraping
 
 
+def timeout_errors() -> tuple[type[BaseException], ...]:
+    """Our own waits raise asyncio's TimeoutError; Playwright's page.goto and
+    wait_for_load_state raise its own TimeoutError, which is not a subclass."""
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+    return asyncio.TimeoutError, PlaywrightTimeoutError
+
+
 async def run_search(context, sem, filters: list[dict], want_options: bool = False) -> dict:
     """Open Program Discovery with `filters` and scroll until the results stop loading."""
-    for attempt in range(SEARCH_ATTEMPTS):
+    for attempt in range(1, PAGE_ATTEMPTS + 1):
         try:
             async with sem:
                 return await _run_search(context, filters, want_options)
-        except asyncio.TimeoutError:
-            if attempt == SEARCH_ATTEMPTS - 1:
+        except timeout_errors():
+            if attempt == PAGE_ATTEMPTS:
                 raise
-            print(f"  discovery search timed out; retrying ({attempt + 1}/{SEARCH_ATTEMPTS - 1})",
-                  file=sys.stderr)
+            print(f"  discovery search timed out; retrying ({attempt}/{PAGE_ATTEMPTS - 1})", file=sys.stderr)
             await asyncio.sleep(2 ** attempt)
 
 
@@ -165,7 +173,7 @@ async def fetch_brochure(context, program_id: int) -> dict:
     page = await context.new_page()
     found: dict[str, object] = {}
     done = asyncio.Event()
-    needed = ("program", "brochure", "dates")
+    needed = BROCHURE_PARTS
 
     async def on_response(resp):
         url = resp.url
@@ -191,9 +199,8 @@ async def fetch_brochure(context, program_id: int) -> dict:
         await page.goto(BROCHURE_URL.format(program_id), wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
         await asyncio.wait_for(done.wait(), PAGE_TIMEOUT_MS / 1000)
         await page.wait_for_timeout(1500)  # let shared document blocks finish loading
-    except asyncio.TimeoutError:
-        missing = [k for k in needed if k not in found]
-        print(f"  warning: program {program_id} brochure missing {missing}", file=sys.stderr)
+    except timeout_errors():
+        pass  # the caller checks what's missing and retries
     finally:
         await page.close()
     return found
@@ -254,9 +261,22 @@ async def scrape(cache: Path, concurrency: int) -> None:
                 print(f"  {i}/{len(jobs)}")
 
         async def brochure(pid: int):
-            async with sem:
-                data = await fetch_brochure(context, pid)
-                (cache / "brochures" / f"{pid}.json").write_text(json.dumps(data))
+            path = cache / "brochures" / f"{pid}.json"
+            for attempt in range(1, PAGE_ATTEMPTS + 1):
+                async with sem:
+                    data = await fetch_brochure(context, pid)
+                missing = [k for k in BROCHURE_PARTS if k not in data]
+                if not missing:
+                    break
+                if attempt < PAGE_ATTEMPTS:
+                    await asyncio.sleep(2 ** attempt)
+            else:
+                if path.exists():
+                    print(f"  warning: program {pid} brochure missing {missing}; keeping the last saved copy",
+                          file=sys.stderr)
+                    return
+                print(f"  warning: program {pid} brochure missing {missing}", file=sys.stderr)
+            path.write_text(json.dumps(data))
 
         print(f"Fetching {len(programs)} brochures...")
         await asyncio.gather(*(brochure(pid) for pid in programs))
