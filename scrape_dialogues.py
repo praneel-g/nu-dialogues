@@ -679,7 +679,8 @@ def build_rows(cache: Path) -> list[dict]:
         row.update(parse_costs(costs_text))
         for column in list(LIST_FILTERS.values()):
             values = memberships.get(column, {})
-            row[column] = "; ".join(v for v, ids in values.items() if pid in ids)
+            # Sorted: memberships are saved in the order searches finished, which varies by run.
+            row[column] = "; ".join(sorted(v for v, ids in values.items() if pid in ids))
         for column in TOGGLE_FILTERS:
             if column in memberships:
                 row[column] = "Yes" if pid in memberships[column].get("Yes", []) else "No"
