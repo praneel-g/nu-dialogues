@@ -64,6 +64,7 @@ TOGGLE_FILTERS = {
 }
 
 PAGE_TIMEOUT_MS = 60_000
+SEARCH_ATTEMPTS = 3
 
 
 def discovery_url(filters: list[dict]) -> str:
@@ -75,8 +76,16 @@ def discovery_url(filters: list[dict]) -> str:
 
 async def run_search(context, sem, filters: list[dict], want_options: bool = False) -> dict:
     """Open Program Discovery with `filters` and scroll until the results stop loading."""
-    async with sem:
-        return await _run_search(context, filters, want_options)
+    for attempt in range(SEARCH_ATTEMPTS):
+        try:
+            async with sem:
+                return await _run_search(context, filters, want_options)
+        except asyncio.TimeoutError:
+            if attempt == SEARCH_ATTEMPTS - 1:
+                raise
+            print(f"  discovery search timed out; retrying ({attempt + 1}/{SEARCH_ATTEMPTS - 1})",
+                  file=sys.stderr)
+            await asyncio.sleep(2 ** attempt)
 
 
 async def _run_search(context, filters: list[dict], want_options: bool) -> dict:
