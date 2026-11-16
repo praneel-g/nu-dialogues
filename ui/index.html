@@ -553,11 +553,12 @@ function renderTable(list) {
   }
   tbody.innerHTML = list.map(p => {
     const open = openRows.has(p.id);
-    const badges = (p.honors ? `<span class="tag honors">Honors</span> ` : "") + (p.plus ? `<span class="tag">Dialogue+</span> ` : "");
+    const plus = p.plus ? `<span class="tag">Dialogue+</span>` : "";
+    const honors = p.honors ? `<span class="tag honors">Honors-endorsed</span>` : "";
     return `<tr class="row ${open ? "open" : ""}" data-id="${p.id}" tabindex="0" aria-expanded="${open}">
       <td><div class="name-cell"><button class="star" data-star="${p.id}" aria-pressed="${p.starred}" aria-label="${p.starred ? "Unstar" : "Star"} ${esc(p.name)}" title="${p.starred ? "Starred on this device" : "Star (saved on this device)"}">${p.starred ? "★" : "☆"}</button>
         <div><div class="name">${highlight(p.name)}</div><div class="where">${highlight(p.countries.join(", "))}</div>
-        <div class="tags row-links">${badges}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener" data-track="apply/${p.id}" data-track-title="Apply: ${esc(p.fullName)}">Apply ↗</a>` : ""}<a class="apply brochure" href="${esc(p.raw.url)}" target="_blank" rel="noopener" data-track="brochure/${p.id}" data-track-title="Brochure: ${esc(p.fullName)}">Brochure ↗</a></div></div></div></td>
+        <div class="tags row-links">${plus}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener" data-track="apply/${p.id}" data-track-title="Apply: ${esc(p.fullName)}">Apply ↗</a>` : ""}<a class="apply brochure" href="${esc(p.raw.url)}" target="_blank" rel="noopener" data-track="brochure/${p.id}" data-track-title="Brochure: ${esc(p.fullName)}">Brochure ↗</a>${honors}</div></div></div></td>
       <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.map(t => t.replace(/ Dialogue$/, "").replace(/ /g, "\u00a0")).join(", "))}</div></td>
       <td class="hide-sm">${tagList(p.faculty, state.sel.faculty, 3)}</td>
       <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}${p.nupaths.length ? `<div class="tags" style="margin-top:4px">${nupathTags(p.nupaths)}</div>` : ""}</td>
