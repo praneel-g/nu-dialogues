@@ -63,7 +63,7 @@ TOGGLE_FILTERS = {
     },
 }
 
-PAGE_TIMEOUT_MS = 60_000
+PAGE_TIMEOUT_MS = 120_000
 BROCHURE_PARTS = ("program", "brochure", "dates")  # JSON a brochure page must load to be complete
 PAGE_ATTEMPTS = 3  # tries per page before giving up, for slow or flaky portal responses
 
