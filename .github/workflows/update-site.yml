@@ -37,7 +37,7 @@ jobs:
 
       - run: python -m playwright install --with-deps chromium
 
-      - run: python scrape_dialogues.py
+      - run: python scrape_dialogues.py --concurrency 2
 
       # ui/data.js gets a new date on every run, so only commit when the data itself changed.
       - name: Commit updated data
