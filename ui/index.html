@@ -9,19 +9,19 @@
 <style>
 :root {
   --bg: #f6f6f4; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
-  --accent: #c8102e; --accent-soft: #fbe9ec; --chip: #f0f0ee; --hover: #fafaf8; --focus: #2563eb;
+  --accent: #c8102e; --accent-soft: #fbe9ec; --star: #d97706; --chip: #f0f0ee; --hover: #fafaf8; --focus: #2563eb;
   --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #141416; --panel: #1c1c1f; --text: #ececee; --muted: #9a9aa2; --line: #2e2e33;
-    --accent: #ff5a6e; --accent-soft: #3a1d23; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
+    --accent: #ff5a6e; --accent-soft: #3a1d23; --star: #fbbf24; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
     --shadow: none;
   }
 }
 :root[data-theme="dark"] {
   --bg: #141416; --panel: #1c1c1f; --text: #ececee; --muted: #9a9aa2; --line: #2e2e33;
-  --accent: #ff5a6e; --accent-soft: #3a1d23; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
+  --accent: #ff5a6e; --accent-soft: #3a1d23; --star: #fbbf24; --chip: #26262a; --hover: #222226; --focus: #60a5fa;
   --shadow: none;
 }
 * { box-sizing: border-box; }
@@ -98,12 +98,18 @@ th .arrow { color: var(--accent); }
 tbody tr.row { cursor: pointer; }
 tbody tr.row:hover { background: var(--hover); }
 tr.row.open { background: var(--hover); }
+.name-cell { display: flex; gap: 6px; align-items: flex-start; }
+.star { all: unset; cursor: pointer; font-size: 17px; line-height: 1.2; color: var(--muted); padding: 0 2px; border-radius: 4px; }
+.star:hover { color: var(--accent); }
+.star[aria-pressed=true] { color: var(--star); }
+.star:focus-visible { outline: 2px solid var(--focus); }
+.apply { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .name { font-weight: 600; }
 .where { color: var(--muted); font-size: 12.5px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nowrap { white-space: nowrap; }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.tag { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 12px; white-space: nowrap; }
+.tag { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 12px; }
 .tag.hl { background: var(--accent-soft); color: var(--accent); }
 .prereqs { max-width: 300px; font-size: 12px; line-height: 1.35; }
 .prereq { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -124,18 +130,31 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; }
 
 .filters-toggle { display: none; }
 .scrim { display: none; }
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
+  .hide-md { display: none; }
+}
+@media (max-width: 1040px) {
   header { padding: 16px 16px 8px; }
   footer { padding: 0 16px 24px; }
-  .layout { grid-template-columns: 1fr; padding: 0 16px 32px; }
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 0 16px 32px; }
   aside { position: fixed; inset: 0 auto 0 0; width: min(88vw, 340px); max-height: none; border-radius: 0; z-index: 20;
     transform: translateX(-105%); transition: transform .2s ease; }
   aside.show { transform: none; }
   .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19; }
   .scrim.show { display: block; }
   .filters-toggle { display: inline-block; }
+}
+@media (max-width: 900px) {
   .hide-sm { display: none; }
   th, td { padding: 9px 8px; }
+  .name { hyphens: auto; }
+}
+@media (max-width: 480px) {
+  td.nowrap, th { white-space: normal; }
+  th, td { padding: 9px 6px; }
+}
+@media (max-width: 359px) {
+  .name { overflow-wrap: anywhere; } /* fallback where long words can't be hyphenated */
 }
 </style>
 </head>
@@ -195,7 +214,18 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const money = n => (n === null || n === undefined || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmtDate = iso => { if (!iso) return "—"; const [y, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]} ${d}, ${y}`; };
-const shortDate = iso => { if (!iso) return "—"; const [, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]} ${d}`; };
+const shortDate = iso => { if (!iso) return "—"; const [, m, d] = iso.split("-").map(Number); return `${MONTHS[m - 1]}\u00a0${d}`; };
+
+const applyUrl = id => `https://goglobal.northeastern.edu/index.cfm?FuseAction=Students.Apply&Program_ID=${encodeURIComponent(id)}&RequiredProfile=1`;
+
+// Stars live in this browser only. Storage can be blocked (private windows), so every access is guarded.
+const STAR_KEY = "nu-dialogues:starred";
+function loadStars() {
+  try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return new Set(Array.isArray(v) ? v.map(String) : []); }
+  catch { return new Set(); }
+}
+let stars = loadStars();
+function saveStars() { try { localStorage.setItem(STAR_KEY, JSON.stringify([...stars])); } catch {} }
 
 // Normalise each program once: multi-value fields become arrays.
 const programs = DATA.map(r => {
@@ -245,6 +275,7 @@ const FACETS = [
   { key: "status", label: "Program status" },
 ];
 const TOGGLES = [
+  { key: "starred", label: "Starred only" },
   { key: "honors", label: "Honors-endorsed only" },
   { key: "accepting", label: "Accepting applications" },
   { key: "noPrereqs", label: "No required prerequisites" },
@@ -288,6 +319,8 @@ function matchesOthers(p, skipKey) {
   if (state.to && (!p.end || p.end > state.to)) return false;
   return true;
 }
+const syncStars = () => programs.forEach(p => { p.starred = stars.has(p.id); });
+syncStars();
 const filtered = () => programs.filter(p => matchesOthers(p, null));
 
 function sorted(list) {
@@ -307,7 +340,7 @@ const facetsEl = document.getElementById("facets");
 function buildSidebar() {
   const parts = [];
   parts.push(`<details class="facet" open><summary>Quick filters</summary><div class="facet-body">
-    ${TOGGLES.map(t => `<label class="toggle"><input type="checkbox" data-toggle="${t.key}"> ${esc(t.label)}</label>`).join("")}
+    ${TOGGLES.map(t => `<label class="toggle"><input type="checkbox" data-toggle="${t.key}"> ${esc(t.label)}${t.key === "starred" ? ` <span class="count" id="star-count"></span>` : ""}</label>`).join("")}
   </div></details>`);
   parts.push(`<details class="facet" open><summary>Cost</summary><div class="facet-body range">
     <div class="range-row"><span>Estimated total up to</span><strong id="maxTotalOut"></strong></div>
@@ -364,6 +397,7 @@ function renderFacets() {
     box.querySelector(".facet-tools").style.display = VALUES[f.key].length > 8 || f.multi ? "" : "none";
   }
   TOGGLES.forEach(t => { facetsEl.querySelector(`[data-toggle="${t.key}"]`).checked = state.toggles[t.key]; });
+  document.getElementById("star-count").textContent = stars.size ? `(${programs.filter(p => p.starred).length})` : "";
   const mt = document.getElementById("maxTotal"), mf = document.getElementById("maxFee");
   mt.value = state.maxTotal; mf.value = state.maxFee;
   document.getElementById("maxTotalOut").textContent = state.maxTotal >= LIMITS.total[1] ? "Any" : money(state.maxTotal);
@@ -402,7 +436,7 @@ const COLS = [
   { key: "dates", label: "Dates", sort: "start" },
   { key: "faculty", label: "Faculty", cls: "hide-sm" },
   { key: "courses", label: "Courses", cls: "hide-sm" },
-  { key: "prereqs", label: "Prerequisites", cls: "hide-sm" },
+  { key: "prereqs", label: "Prerequisites", cls: "hide-sm hide-md" },
   { key: "fee", label: "DOC fee", sort: "fee", cls: "num hide-sm" },
   { key: "total", label: "Est. total", sort: "total", cls: "num" },
 ];
@@ -461,25 +495,28 @@ function detailRow(p) {
       <div class="more" style="margin-top:6px">Ranges count at their upper end. Check the brochure for details.</div></div>
     <div><h4>Colleges & subjects</h4>${tagList(p.colleges, state.sel.colleges, 99)}<div style="height:6px"></div>${tagList(p.subjects, state.sel.subjects, 99)}
       ${p.endorsed.length ? `<h4 style="margin-top:12px">Endorsed by</h4>${tagList(p.endorsed, state.sel.endorsed, 99)}` : ""}
-      <p style="margin:12px 0 0"><a href="${esc(r.url)}" target="_blank" rel="noopener">Open brochure ↗</a></p></div>
+      <p style="margin:12px 0 0">${p.accepting ? `<a href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener"><strong>Apply ↗</strong></a> · ` : `<span class="more">Not accepting applications</span> · `}<a href="${esc(r.url)}" target="_blank" rel="noopener">Open brochure ↗</a></p></div>
   </div></td></tr>`;
 }
 
 function renderTable(list) {
   const tbody = document.getElementById("tbody");
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="${COLS.length}" class="empty">No programs match these filters.</td></tr>`;
+    const msg = state.toggles.starred && !stars.size ? "No starred programs yet. Tap ☆ next to a program to save it on this device." : "No programs match these filters.";
+    tbody.innerHTML = `<tr><td colspan="${COLS.length}" class="empty">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(p => {
     const open = openRows.has(p.id);
     const badges = (p.honors ? `<span class="tag honors">Honors</span> ` : "") + (p.plus ? `<span class="tag">Dialogue+</span> ` : "");
     return `<tr class="row ${open ? "open" : ""}" data-id="${p.id}" tabindex="0" aria-expanded="${open}">
-      <td><div class="name">${highlight(p.name)}</div><div class="where">${highlight(p.countries.join(", "))}</div>${badges ? `<div class="tags" style="margin-top:4px">${badges}</div>` : ""}</td>
-      <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.join(", "))}</div></td>
+      <td><div class="name-cell"><button class="star" data-star="${p.id}" aria-pressed="${p.starred}" aria-label="${p.starred ? "Unstar" : "Star"} ${esc(p.name)}" title="${p.starred ? "Starred on this device" : "Star (saved on this device)"}">${p.starred ? "★" : "☆"}</button>
+        <div><div class="name">${highlight(p.name)}</div><div class="where">${highlight(p.countries.join(", "))}</div>
+        ${badges || p.accepting ? `<div class="tags" style="margin-top:4px">${badges}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener">Apply ↗</a>` : ""}</div>` : ""}</div></div></td>
+      <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.map(t => t.replace(/ Dialogue$/, "").replace(/ /g, "\u00a0")).join(", "))}</div></td>
       <td class="hide-sm">${tagList(p.faculty, state.sel.faculty, 3)}</td>
       <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}</td>
-      <td class="hide-sm">${prereqCell(p)}</td>
+      <td class="hide-sm hide-md">${prereqCell(p)}</td>
       <td class="num hide-sm">${money(p.fee)}</td>
       <td class="num"><strong>${money(p.total)}</strong></td>
     </tr>${open ? detailRow(p) : ""}`;
@@ -587,8 +624,22 @@ function init() {
   });
   const toggleRow = row => { const id = row.dataset.id; openRows.has(id) ? openRows.delete(id) : openRows.add(id); renderTable(current); };
   const tbody = document.getElementById("tbody");
-  tbody.addEventListener("click", e => { if (e.target.closest("a")) return; const row = e.target.closest("tr.row"); if (row) toggleRow(row); });
+  tbody.addEventListener("click", e => {
+    const star = e.target.closest("[data-star]");
+    if (star) {
+      const id = star.dataset.star;
+      stars.has(id) ? stars.delete(id) : stars.add(id);
+      saveStars(); syncStars(); update();
+      tbody.querySelector(`[data-star="${id}"]`)?.focus();
+      return;
+    }
+    if (e.target.closest("a")) return;
+    const row = e.target.closest("tr.row"); if (row) toggleRow(row);
+  });
+  // Stars changed in another tab.
+  window.addEventListener("storage", e => { if (e.key === STAR_KEY) { stars = loadStars(); syncStars(); update(); } });
   tbody.addEventListener("keydown", e => {
+    if (e.target.closest("a, button")) return; // let links and the star button handle their own keys
     const row = e.target.closest("tr.row");
     if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(row); tbody.querySelector(`tr.row[data-id="${row.dataset.id}"]`).focus(); }
   });

@@ -17,6 +17,10 @@ estimated total cost. The scraper also writes everything to `dialogues.csv`.
   **All** matches programs with every one.
 - Filters are saved in the URL, so you can bookmark or share a view.
 - **Export CSV** downloads only the programs shown.
+- **☆** stars a program. Stars are saved in your browser on that device only;
+  **Starred only** under Quick filters shows them.
+- **Apply ↗** opens the program's GEO application (after Northeastern sign-in).
+  It only appears while the portal says the program is accepting applications.
 
 `ui/index.html` also works opened straight from disk.
 
