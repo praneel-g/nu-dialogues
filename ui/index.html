@@ -79,6 +79,11 @@ aside { position: sticky; top: 12px; align-self: start; max-height: calc(100vh -
 .dates input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
 .toggle { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
 .toggle input { accent-color: var(--accent); }
+.gpa { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; }
+.gpa input { width: 84px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.gpa .more { flex: 1; }
+.tag.np { font-size: 11px; padding: 0 5px; background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.tag.np.hl { border-color: var(--accent); }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
 .search { flex: 1 1 260px; position: relative; }
@@ -218,6 +223,8 @@ mark { background: #fde68a; color: inherit; border-radius: 2px; }
 <script>
 "use strict";
 const DATA = (window.DIALOGUES && window.DIALOGUES.programs) || [];
+const NUPATHS = (window.DIALOGUES && window.DIALOGUES.nupaths) || {};
+const nupathLabel = code => NUPATHS[code] ? `${code} · ${NUPATHS[code]}` : code;
 const SEP = "; ";
 const split = v => (v || "").split(SEP).map(s => s.trim()).filter(Boolean);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -263,18 +270,23 @@ const programs = DATA.map(r => {
     fee: r.doc_fee !== "" ? Number(r.doc_fee) : null,
     credits: r.credits,
     prereqs: split(r.prerequisites).filter(v => v !== "None"),
+    nupaths: split(r.nupaths),
+    // "FRNH 4944: IC, EI; ARCH 4850: EI" -> [["FRNH 4944", ["IC", "EI"]], ...], from the GEO DOC Course Guide
+    courseNupaths: split(r.course_nupaths).map(v => { const i = v.lastIndexOf(":"); return [v.slice(0, i).trim(), v.slice(i + 1).split(",").map(x => x.trim()).filter(Boolean)]; }),
+    minGpa: r.min_gpa ? Number(r.min_gpa) : null,
   };
 });
 programs.forEach(p => {
   // Only recommendations, exclusions, or notes left -> nothing actually required.
   p.noPrereqs = !p.prereqs.some(v => !/^(Not open|Exceptions)/.test(v) && !/: Recommended:/.test(v) && !v.startsWith("Recommended"));
   p.haystack = [p.fullName, p.courses.join(" "), p.faculty.join(" "), p.cities.join(" "), p.countries.join(" "),
-    p.regions.join(" "), p.subjects.join(" "), p.colleges.join(" "), p.terms.join(" "), p.prereqs.join(" ")].join(" ").toLowerCase();
+    p.regions.join(" "), p.subjects.join(" "), p.colleges.join(" "), p.terms.join(" "), p.prereqs.join(" "), p.nupaths.map(nupathLabel).join(" ")].join(" ").toLowerCase();
 });
 
 // Facets: list facets support any/all matching when a program can have several values.
 const FACETS = [
   { key: "countries", label: "Country", multi: true, open: true },
+  { key: "nupaths", label: "NUPath", multi: true, open: true, display: nupathLabel },
   { key: "regions", label: "Region", multi: true },
   { key: "terms", label: "Term" },
   { key: "colleges", label: "College / School", multi: true, open: true },
@@ -304,7 +316,7 @@ const blankState = () => ({
   q: "", sort: "name", sel: Object.fromEntries(FACETS.map(f => [f.key, []])),
   mode: Object.fromEntries(FACETS.map(f => [f.key, "any"])),
   toggles: Object.fromEntries(TOGGLES.map(t => [t.key, false])),
-  maxTotal: LIMITS.total[1], maxFee: LIMITS.fee[1], from: "", to: "",
+  maxTotal: LIMITS.total[1], maxFee: LIMITS.fee[1], from: "", to: "", gpa: "",
 });
 let state = blankState();
 const openRows = new Set();
@@ -327,6 +339,8 @@ function matchesOthers(p, skipKey) {
   if (state.maxFee < LIMITS.fee[1] && (p.fee === null || p.fee > state.maxFee)) return false;
   if (state.from && (!p.start || p.start < state.from)) return false;
   if (state.to && (!p.end || p.end > state.to)) return false;
+  const gpa = parseFloat(state.gpa);
+  if (!isNaN(gpa) && p.minGpa !== null && p.minGpa > gpa) return false;
   return true;
 }
 const syncStars = () => programs.forEach(p => { p.starred = stars.has(p.id); });
@@ -351,6 +365,8 @@ function buildSidebar() {
   const parts = [];
   parts.push(`<details class="facet" open><summary>Quick filters</summary><div class="facet-body">
     ${TOGGLES.map(t => `<label class="toggle"><input type="checkbox" data-toggle="${t.key}"> ${esc(t.label)}${t.key === "starred" ? ` <span class="count" id="star-count"></span>` : ""}</label>`).join("")}
+    <label class="gpa">Your GPA <input type="number" id="gpa" min="0" max="4" step="0.01" inputmode="decimal" placeholder="e.g. 3.2"
+      aria-describedby="gpa-help"><span class="more" id="gpa-help">Hides programs that need a higher GPA</span></label>
   </div></details>`);
   parts.push(`<details class="facet" open><summary>Cost</summary><div class="facet-body range">
     <div class="range-row"><span>Estimated total up to</span><strong id="maxTotalOut"></strong></div>
@@ -399,7 +415,7 @@ function renderFacets() {
     box.querySelector(".opts").innerHTML = vals.length ? vals.map(v => {
       const c = counts.get(v) || 0, on = sel.includes(v);
       return `<label class="opt ${c || on ? "" : "zero"}"><input type="checkbox" data-facet-val="${esc(f.key)}" value="${esc(v)}" ${on ? "checked" : ""}>
-        <span class="label">${esc(v)}</span><span class="count">${c}</span></label>`;
+        <span class="label">${esc(f.display ? f.display(v) : v)}</span><span class="count">${c}</span></label>`;
     }).join("") : `<div class="more" style="padding:4px">${VALUES[f.key].length ? "No match" : "No values for Dialogues"}</div>`;
     const badge = box.querySelector(".badge");
     badge.hidden = !sel.length; badge.textContent = sel.length;
@@ -414,6 +430,8 @@ function renderFacets() {
   document.getElementById("maxFeeOut").textContent = state.maxFee >= LIMITS.fee[1] ? "Any" : money(state.maxFee);
   document.getElementById("from").value = state.from;
   document.getElementById("to").value = state.to;
+  const gpaEl = document.getElementById("gpa");
+  if (document.activeElement !== gpaEl) gpaEl.value = state.gpa; // don't rewrite it mid-typing ("3." -> "3")
 }
 
 // ---------- chips
@@ -421,13 +439,14 @@ function renderChips() {
   const chips = [];
   if (state.q) chips.push({ label: `Search: <b>${esc(state.q)}</b>`, clear: () => { state.q = ""; qEl.value = ""; } });
   for (const f of FACETS) for (const v of state.sel[f.key]) {
-    chips.push({ label: `${esc(f.label)}: <b>${esc(v)}</b>`, clear: () => { state.sel[f.key] = state.sel[f.key].filter(x => x !== v); } });
+    chips.push({ label: `${esc(f.label)}: <b>${esc(f.display ? f.display(v) : v)}</b>`, clear: () => { state.sel[f.key] = state.sel[f.key].filter(x => x !== v); } });
   }
   for (const t of TOGGLES) if (state.toggles[t.key]) chips.push({ label: esc(t.label), clear: () => { state.toggles[t.key] = false; } });
   if (state.maxTotal < LIMITS.total[1]) chips.push({ label: `Total ≤ <b>${money(state.maxTotal)}</b>`, clear: () => { state.maxTotal = LIMITS.total[1]; } });
   if (state.maxFee < LIMITS.fee[1]) chips.push({ label: `DOC fee ≤ <b>${money(state.maxFee)}</b>`, clear: () => { state.maxFee = LIMITS.fee[1]; } });
   if (state.from) chips.push({ label: `Starts ≥ <b>${fmtDate(state.from)}</b>`, clear: () => { state.from = ""; } });
   if (state.to) chips.push({ label: `Ends ≤ <b>${fmtDate(state.to)}</b>`, clear: () => { state.to = ""; } });
+  if (!isNaN(parseFloat(state.gpa))) chips.push({ label: `Your GPA: <b>${esc(state.gpa)}</b>`, clear: () => { state.gpa = ""; } });
   const el = document.getElementById("chips");
   el.innerHTML = chips.map((c, i) => `<span class="chip">${c.label}<button data-chip="${i}" aria-label="Remove filter">×</button></span>`).join("")
     + (chips.length > 1 ? `<button class="btn link" data-chip="all">Clear all</button>` : "");
@@ -482,13 +501,24 @@ function prereqCell(p) {
   }).join("")}${note}</div>`;
 }
 
+// NUPaths for one of the program's courses. Course Guide keys are a single code ("INTL 3430"),
+// while ours can be cross-listed ("POLS 3430 / INTL 3430: ..."), so match on the code part.
+function courseNupaths(p, course) {
+  const codes = course.split(":")[0];
+  return [...new Set(p.courseNupaths.filter(([k]) => codes.includes(k)).flatMap(([, v]) => v))];
+}
+function nupathTags(codes) {
+  if (!codes.length) return "";
+  return ` ${codes.map(c => `<span class="tag np ${state.sel.nupaths.includes(c) ? "hl" : ""}" title="${esc(NUPATHS[c] || c)}">${esc(c)}</span>`).join(" ")}`;
+}
+
 function detailRow(p) {
   const r = p.raw;
   const costs = [["Tuition", r.tuition], ["DOC fee", r.doc_fee], ["Flight", r.flight_estimate], ["Food", r.food_estimate],
     ["Housing", r.housing_estimate], ["Personal", r.personal_expenses_estimate]].filter(([, v]) => v !== "");
   const facultyHtml = p.faculty.map((n, i) => `<li>${esc(n)}${p.emails[i] ? ` · <a href="mailto:${esc(p.emails[i])}">${esc(p.emails[i])}</a>` : ""}</li>`).join("");
   return `<tr class="detail"><td colspan="${COLS.length}"><div class="detail-grid">
-    <div><h4>Courses${p.credits ? ` · ${esc(p.credits)} credits` : ""}</h4><ul>${p.courses.map(c => `<li>${highlight(c)}</li>`).join("") || "<li>—</li>"}</ul>
+    <div><h4>Courses${p.credits ? ` · ${esc(p.credits)} credits` : ""}</h4><ul>${p.courses.map(c => `<li>${highlight(c)}${nupathTags(courseNupaths(p, c))}</li>`).join("") || "<li>—</li>"}</ul>
       <h4 style="margin-top:12px">Prerequisites</h4><ul>${p.prereqs.map(c => `<li>${highlight(c)}</li>`).join("") || "<li>None listed</li>"}</ul></div>
     <div><h4>Faculty leaders</h4><ul>${facultyHtml || "<li>—</li>"}</ul>
       <h4 style="margin-top:12px">Where</h4><div>${esc(p.cities.join(" · "))}</div><div class="where">${esc(p.countries.join(", "))}</div></div>
@@ -497,6 +527,7 @@ function detailRow(p) {
       <span>Program</span><span>${fmtDate(p.start)} – ${fmtDate(p.end)}</span>
       <span>Apply by</span><span>${esc(split(r.application_deadline).map(fmtDate).join(", ") || "—")}</span>
       <span>Decision</span><span>${esc(split(r.decision_date).map(fmtDate).join(", ") || "—")}</span>
+      <span>Min GPA</span><span>${p.minGpa !== null ? p.minGpa.toFixed(2) : "—"}</span>
       <span>Status</span><span>${esc(p.status.join(", ") || "—")}${p.accepting ? " · accepting applications" : ""}</span>
     </div></div>
     <div><h4>Estimated costs</h4><div class="kv">${costs.map(([k, v]) => `<span>${k}</span><span>${money(Number(v))}</span>`).join("")}
@@ -525,7 +556,7 @@ function renderTable(list) {
         ${badges || p.accepting ? `<div class="tags" style="margin-top:4px">${badges}${p.accepting ? `<a class="apply" href="${esc(applyUrl(p.id))}" target="_blank" rel="noopener">Apply ↗</a>` : ""}</div>` : ""}</div></div></td>
       <td class="nowrap">${shortDate(p.start)} – ${shortDate(p.end)}<div class="where">${esc(p.terms.map(t => t.replace(/ Dialogue$/, "").replace(/ /g, "\u00a0")).join(", "))}</div></td>
       <td class="hide-sm">${tagList(p.faculty, state.sel.faculty, 3)}</td>
-      <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}</td>
+      <td class="hide-sm">${tagList(p.courses.map(c => c.split(":")[0]), [], 4)}${p.nupaths.length ? `<div class="tags" style="margin-top:4px">${nupathTags(p.nupaths)}</div>` : ""}</td>
       <td class="hide-sm hide-md">${prereqCell(p)}</td>
       <td class="num hide-sm">${money(p.fee)}</td>
       <td class="num"><strong>${money(p.total)}</strong></td>
@@ -544,6 +575,7 @@ function saveHash() {
   if (state.maxFee < LIMITS.fee[1]) s.maxFee = state.maxFee;
   if (state.from) s.from = state.from;
   if (state.to) s.to = state.to;
+  if (state.gpa) s.gpa = state.gpa;
   const h = new URLSearchParams(s).toString();
   history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
 }
@@ -560,6 +592,7 @@ function loadHash() {
   if (s.get("maxTotal")) state.maxTotal = Number(s.get("maxTotal"));
   if (s.get("maxFee")) state.maxFee = Number(s.get("maxFee"));
   state.from = s.get("from") || ""; state.to = s.get("to") || "";
+  state.gpa = s.get("gpa") || "";
 }
 
 // ---------- export
@@ -619,6 +652,7 @@ function init() {
     const el = e.target;
     if (el.dataset.fsearch) { facetSearch[el.dataset.fsearch] = el.value; renderFacets(); }
     else if (el.id === "maxTotal" || el.id === "maxFee") { state[el.id] = Number(el.value); update(); }
+    else if (el.id === "gpa") { state.gpa = el.value.trim(); update(); }
   });
   facetsEl.addEventListener("click", e => {
     const b = e.target.closest("[data-mode]"); if (!b) return;

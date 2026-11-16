@@ -33,6 +33,24 @@ PORTAL = "https://goglobal.northeastern.edu/_portal"
 DISCOVERY_URL = PORTAL + "/program-discovery?search="
 BROCHURE_URL = PORTAL + "/tds-program-brochure?programid={}"
 HONORS_URL = "https://honors.northeastern.edu/global-2/global-opportunities/dialogues-of-civilization/"
+COURSE_GUIDE_URL = "https://geo.northeastern.edu/doc-courses/"
+
+# NUPath codes used by the GEO DOC Course Guide.
+NUPATHS = {
+    "ND": "Engaging with the Natural and Designed World",
+    "EI": "Exploring Creative Expression and Innovation",
+    "IC": "Interpreting Culture",
+    "FQ": "Conducting Formal and Quantitative Reasoning",
+    "SI": "Understanding Societies and Institutions",
+    "AD": "Analyzing and Using Data",
+    "DD": "Engaging Difference and Diversity",
+    "ER": "Employing Ethical Reasoning",
+    "WF": "First-Year Writing",
+    "WI": "Writing Intensive",
+    "WD": "Advanced Writing in the Disciplines",
+    "EX": "Integrating Knowledge and Skills Through Experience",
+    "CE": "Capstone Experience",
+}
 
 DOC_FILTER = {
     "filterType": "programDiscoveryProgramParameters",
@@ -309,6 +327,14 @@ async def scrape(cache: Path, concurrency: int) -> None:
         print(f"Fetching {len(programs)} brochures...")
         await asyncio.gather(*(brochure(pid) for pid in programs))
 
+        print("Fetching the GEO DOC Course Guide (NUPaths, minimum GPA)...")
+        try:
+            guide = await fetch_course_guide(context)
+            (cache / "course_guide.html").write_text(guide)
+        except Exception as e:
+            print(f"  warning: could not fetch {COURSE_GUIDE_URL} ({e}); NUPaths and GPA will use the last saved copy",
+                  file=sys.stderr)
+
         await browser.close()
 
     print("Fetching the Honors Program's list of Honors-Endorsed Dialogues...")
@@ -582,6 +608,53 @@ def parse_endorsements(text: str) -> list[str]:
     return found
 
 
+async def fetch_course_guide(context) -> str:
+    """The Course Guide is a WordPress TablePress table. The site's firewall refuses plain HTTP clients, so it's
+    loaded in the browser; the server's HTML has every row (the page's own script later hides all but 25)."""
+    page = await context.new_page()
+    try:
+        resp = await page.goto(COURSE_GUIDE_URL, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+        if not resp or not resp.ok:
+            raise RuntimeError(f"HTTP {resp.status if resp else '?'}")
+        body = await resp.text()
+    finally:
+        await page.close()
+    if not parse_course_guide(body):
+        raise RuntimeError("no Course Guide table found; the page may have changed")
+    return body
+
+
+def parse_course_guide(page_html: str) -> dict[str, dict]:
+    """program id -> {"course_nupaths": {course code: [NUPath codes]}, "min_gpa": "2.50"} from the Course Guide."""
+    table = re.search(r'(?s)<table[^>]*id="tablepress-[^"]*"[^>]*>.*?</table>', page_html)
+    if not table or "<tbody" not in table[0]:
+        return {}
+    head, body = table[0].split("<tbody", 1)
+    headers = [html_to_text(h).strip().lower() for h in re.findall(r"(?s)<th[^>]*>(.*?)</th>", head)]
+    try:
+        details_col, gpa_col = headers.index("course details"), headers.index("minimum gpa")
+    except ValueError:
+        return {}
+    out = {}
+    for tr in re.findall(r"(?s)<tr[^>]*>(.*?)</tr>", body):
+        pid = re.search(r"programid=(\d+)", tr)
+        cells = re.findall(r"(?s)<td[^>]*>(.*?)</td>", tr)
+        if not pid or len(cells) <= max(details_col, gpa_col):
+            continue
+        course_nupaths = {}
+        # Each course is "<li><strong>Course:</strong> CODE: Title <ul><li>NUPaths: IC, EI</li>...</ul></li>".
+        for block in re.split(r"<strong>Course:</strong>", cells[details_col])[1:]:
+            code = COURSE_RE.search(html_to_text(block.split("<ul>")[0]))
+            nupaths = re.search(r"(?s)NUPaths:</strong>(.*?)</li>", block)
+            if code and nupaths:
+                codes = [c for c in re.findall(r"\b[A-Z]{2}\b", html_to_text(nupaths[1])) if c in NUPATHS]
+                if codes:
+                    course_nupaths[f"{code[1]} {code[2]}"] = list(dict.fromkeys(codes))
+        gpa = re.search(r"\d\.\d+", html_to_text(cells[gpa_col]))
+        out[pid[1]] = {"course_nupaths": course_nupaths, "min_gpa": gpa[0] if gpa else ""}
+    return out
+
+
 def fetch_honors_page() -> str:
     # A plain HTTP request: the Honors site hangs for headless Chromium.
     import urllib.request
@@ -661,7 +734,16 @@ def dates_from_text(text: str) -> tuple[str, str, str]:
     return start, end, deadline
 
 
-def build_rows(cache: Path) -> list[dict]:
+def previous_values(csv_path: Path | None, columns: list[str]) -> dict[str, dict]:
+    """program id -> {column: value} from the last CSV, for sources that couldn't be fetched this run.
+    cache/ isn't kept between GitHub Actions runs, so without this a blocked page would blank its columns."""
+    if not csv_path or not csv_path.exists():
+        return {}
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        return {r["program_id"]: {c: r.get(c, "") for c in columns} for r in csv.DictReader(f)}
+
+
+def build_rows(cache: Path, previous_csv: Path | None = None) -> list[dict]:
     programs = json.loads((cache / "programs.json").read_text())
     memberships = json.loads((cache / "filters.json").read_text())
 
@@ -722,12 +804,33 @@ def build_rows(cache: Path) -> list[dict]:
         row["url"] = BROCHURE_URL.format(pid)
         rows.append(row)
 
+    guide_page = cache / "course_guide.html"
+    guide = parse_course_guide(guide_page.read_text()) if guide_page.exists() else {}
+    if not guide:
+        kept = previous_values(previous_csv, ["nupaths", "course_nupaths", "min_gpa"])
+        print(f"  warning: no Course Guide data in {guide_page}; "
+              + ("keeping nupaths and min_gpa from the last CSV" if kept else "nupaths and min_gpa will be empty"),
+              file=sys.stderr)
+    for row in rows:
+        if not guide:
+            row.update(kept.get(str(row["program_id"]), {"nupaths": "", "course_nupaths": "", "min_gpa": ""}))
+            continue
+        g = guide.get(str(row["program_id"]), {})
+        per_course = g.get("course_nupaths", {})
+        # Sorted in NUPATHS order so the CSV is stable from run to run.
+        union = [c for c in NUPATHS if any(c in v for v in per_course.values())]
+        row["nupaths"] = "; ".join(union)
+        row["course_nupaths"] = "; ".join(f"{course}: {', '.join(codes)}" for course, codes in per_course.items())
+        row["min_gpa"] = g.get("min_gpa", "")
+
     honors_page = cache / "honors.html"
-    if honors_page.exists():
-        honors = match_honors(parse_honors_list(honors_page.read_text()), rows)
-    else:
-        print(f"  warning: {honors_page} missing; run a full scrape to fill honors_endorsed")
-        honors = set()
+    honors = match_honors(parse_honors_list(honors_page.read_text()), rows) if honors_page.exists() else set()
+    if not honors:
+        kept_honors = previous_values(previous_csv, ["honors_endorsed"])
+        honors = {pid for pid, v in kept_honors.items() if v["honors_endorsed"] == "Yes"}
+        honors = {row["program_id"] for row in rows if str(row["program_id"]) in honors}
+        print(f"  warning: no Honors list in {honors_page}; "
+              + ("keeping honors_endorsed from the last CSV" if honors else "honors_endorsed will be all No"), file=sys.stderr)
     for row in rows:
         row["honors_endorsed"] = "Yes" if row["program_id"] in honors else "No"
         if row["program_id"] in honors:
@@ -749,7 +852,7 @@ def write_ui_data(rows: list[dict], out: Path) -> None:
     from datetime import datetime, timezone
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "programs": rows}
+    payload = {"generated": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "nupaths": NUPATHS, "programs": rows}
     out.write_text("window.DIALOGUES = " + json.dumps(payload, ensure_ascii=False) + ";\n", encoding="utf-8")
 
 
@@ -768,7 +871,7 @@ def main() -> None:
     elif not (args.cache_dir / "programs.json").exists():
         sys.exit(f"No cache at {args.cache_dir}; run without --from-cache first.")
 
-    rows = build_rows(args.cache_dir)
+    rows = build_rows(args.cache_dir, previous_csv=args.output)
     write_csv(rows, args.output)
     print(f"Wrote {len(rows)} programs to {args.output}")
     if args.ui_data:

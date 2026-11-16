@@ -3,8 +3,8 @@
 **[praneel-g.github.io/nu-dialogues](https://praneel-g.github.io/nu-dialogues/)**
 
 Every Dialogue of Civilizations (DOC) program on Northeastern's GEO portal in
-one searchable table: courses, prerequisites, faculty, dates, DOC fee, and
-estimated total cost. The scraper also writes everything to `dialogues.csv`.
+one searchable table: courses, prerequisites, NUPaths, minimum GPA, faculty,
+dates, DOC fee, and estimated total cost. The scraper also writes everything to `dialogues.csv`.
 
 > Unofficial student tool, not affiliated with Northeastern GEO. Values are
 > pulled from program brochures, which can change. Check the brochure link in
@@ -56,6 +56,7 @@ Columns with several values are separated by `; `. Dates are YYYY-MM-DD and cost
 | `cost_lines` | Every Costs tab line with a dollar amount, for checking the parsed numbers |
 | `colleges_and_schools`, `academic_subjects`, `program_status`, `institution_type` | Portal filters |
 | `college_endorsed` | Portal College-Endorsed filter (currently matches nothing), "&lt;College&gt;-Endorsed Program" notes in the brochure, plus Honors |
+| `nupaths`, `course_nupaths`, `min_gpa` | GEO's [DOC Course Guide](https://geo.northeastern.edu/doc-courses/). `nupaths` is every NUPath any of the program's courses can fill (codes, e.g. `IC`); `course_nupaths` lists them by course (`ARTE 2500: EI, IC`). Empty for programs not in the guide. |
 | `honors_endorsed` | Yes if on the Honors Program's [current Honors-Endorsed DOC list](https://honors.northeastern.edu/global-2/global-opportunities/dialogues-of-civilization/) |
 | `accepting_applications`, `program_sponsored_housing`, `us_accredited_institution` | Portal on/off filters (Yes/No) |
 | `url` | Program brochure |
@@ -70,3 +71,6 @@ visits the same public pages a student would, and saves the JSON they load to
 `cache/`. The portal pages results 12 at a time and Dialogues all tie on
 relevance, so paging can skip programs. When a search comes back short, the
 script repeats it per country and merges the results.
+
+If the Course Guide or the Honors page can't be fetched, those columns keep
+their values from the existing `dialogues.csv` instead of going blank.
