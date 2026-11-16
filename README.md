@@ -37,7 +37,7 @@ python3 -m venv .venv
 ```
 
 `-o` sets the CSV path and `--concurrency` the number of browser tabs (default 4).
-A GitHub Action rescrapes every Monday and redeploys the site if the data
+A GitHub Action rescrapes every day and redeploys the site if the data
 changed. Pushing to `ui/` on `main` also redeploys.
 
 ## Columns

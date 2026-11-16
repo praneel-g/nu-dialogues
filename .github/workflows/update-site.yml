@@ -1,10 +1,10 @@
-# Scrapes fresh Dialogue data every Monday, commits it if anything changed, and
+# Scrapes fresh Dialogue data every day, commits it if anything changed, and
 # publishes the static site in ui/ to GitHub Pages. Pushes to main just redeploy.
 name: Update and deploy site
 
 on:
   schedule:
-    - cron: "23 11 * * 1" # Mondays, 7:23 AM Boston time (EDT)
+    - cron: "23 11 * * *" # Daily, 6:23 AM Boston time (7:23 AM during daylight saving)
   workflow_dispatch:
   push:
     branches: [main]
