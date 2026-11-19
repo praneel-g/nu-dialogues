@@ -259,8 +259,20 @@ async def scrape(cache: Path, concurrency: int) -> None:
     (cache / "brochures").mkdir(exist_ok=True)
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
-        context = await browser.new_context(viewport={"width": 1400, "height": 1000})
+        browser = await pw.chromium.launch(
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = await browser.new_context(
+            viewport={"width": 1400, "height": 1000},
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+            locale="en-US",
+            timezone_id="America/New_York",
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        )
+        await context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
         sem = asyncio.Semaphore(concurrency)  # limits open browser tabs
 
         print("Listing Dialogue of Civilizations programs...")
