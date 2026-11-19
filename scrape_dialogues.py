@@ -252,7 +252,7 @@ async def fetch_brochure(context, program_id: int) -> dict:
     return found
 
 
-async def scrape(cache: Path, concurrency: int) -> None:
+async def scrape(cache: Path, concurrency: int) -> bool:
     from playwright.async_api import async_playwright
 
     cache.mkdir(parents=True, exist_ok=True)
@@ -264,11 +264,12 @@ async def scrape(cache: Path, concurrency: int) -> None:
         )
         context = await browser.new_context(
             viewport={"width": 1400, "height": 1000},
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                       "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
             locale="en-US",
             timezone_id="America/New_York",
-            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+            extra_http_headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
         )
         await context.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
@@ -276,14 +277,21 @@ async def scrape(cache: Path, concurrency: int) -> None:
         sem = asyncio.Semaphore(concurrency)  # limits open browser tabs
 
         print("Listing Dialogue of Civilizations programs...")
-        base = await complete_search(context, sem, [DOC_FILTER], [], want_options=True)
+        try:
+            base = await complete_search(context, sem, [DOC_FILTER], [], want_options=True)
+        except timeout_errors():
+            print("  warning: GEO portal discovery is unavailable; keeping the existing data", file=sys.stderr)
+            await browser.close()
+            return False
         programs = base["records"]
         # Countries that actually have Dialogues; used to split later searches.
         doc_countries = sorted({loc["country"] for rec in programs.values()
                                 for loc in rec.get("stLocations") or [] if loc.get("country")})
         print(f"  {len(programs)} programs (site reports {base['total']})")
         if not programs:
-            sys.exit("No programs found; the portal may have changed.")
+            print("  warning: No programs found; keeping the existing data", file=sys.stderr)
+            await browser.close()
+            return False
 
         # Which filter values exist, as listed by the site's filter panel.
         filter_values: dict[int, list[str]] = {}
@@ -357,6 +365,7 @@ async def scrape(cache: Path, concurrency: int) -> None:
 
     (cache / "programs.json").write_text(json.dumps(list(programs.values())))
     (cache / "filters.json").write_text(json.dumps(memberships, indent=1))
+    return True
 
 
 # --------------------------------------------------------------------------- parsing
@@ -879,7 +888,9 @@ def main() -> None:
     args = ap.parse_args()
 
     if not args.from_cache:
-        asyncio.run(scrape(args.cache_dir, max(1, args.concurrency)))
+        if not asyncio.run(scrape(args.cache_dir, max(1, args.concurrency))):
+            print("Scrape unavailable; leaving existing Dialogue data unchanged.")
+            return
     elif not (args.cache_dir / "programs.json").exists():
         sys.exit(f"No cache at {args.cache_dir}; run without --from-cache first.")
 
